@@ -1,0 +1,216 @@
+name: iOS Simulator
+run-name: iOS Simulator ${{ inputs.build_id }}
+
+# Builds the app for the simulator and then makes that simulator usable from
+# the MobAI app, so the build can be tried by hand from a machine that is not a
+# Mac. The job stays alive while the simulator is in use and ends when it is
+# released or left unused.
+#
+# Simulator builds are never signed, so none of the signing setup in
+# ios-build.yml applies here.
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: 'Unique build identifier'
+        required: true
+        type: string
+      snapshot_ref:
+        description: 'Ref holding the working-tree snapshot to build (empty builds this branch)'
+        required: false
+        type: string
+        default: ''
+      ios_path:
+        description: 'Path to iOS project (e.g., "ios" for React Native)'
+        required: false
+        type: string
+        default: '.'
+      scheme:
+        description: 'Xcode scheme to build (auto-detected if empty)'
+        required: false
+        type: string
+        default: ''
+      duration:
+        description: 'How long the simulator stays available while unused (e.g. 30m)'
+        required: false
+        type: string
+        default: '30m'
+      flutter_version:
+        description: 'Flutter version to use (e.g., 3.24.0). Empty means latest stable.'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  simulator:
+    runs-on: macos-latest
+    # Bounds the session: a simulator nobody released must not hold a runner
+    # indefinitely. Comfortably above the default duration.
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # The dispatch always runs the workflow from the default branch, so the
+      # sources come from a snapshot ref pushed by the CLI instead.
+      - name: Checkout working-tree snapshot
+        if: inputs.snapshot_ref != ''
+        env:
+          SNAPSHOT_REF: ${{ inputs.snapshot_ref }}
+        run: |
+          set -e
+          git fetch --depth=1 origin "+$SNAPSHOT_REF:refs/heads/snapshot"
+          git checkout --force snapshot
+          echo "Building $(git rev-parse --short HEAD)"
+
+      # Starts the simulator booting in the background (cached, so later runs
+      # boot fast) while the app builds.
+      - name: Install mobai-ci + boot simulator
+        uses: MobAI-App/mobai-ci@v1
+        with:
+          boot-sim: true # UDID lands in $MOBAI_SIM_UDID
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Restore DerivedData cache
+        uses: actions/cache/restore@v4
+        with:
+          path: DerivedData
+          key: deriveddata-sim-${{ github.run_id }}
+          restore-keys: |
+            deriveddata-sim-
+
+      - name: Detect project type
+        id: detect
+        run: |
+          if [ -f "pubspec.yaml" ]; then
+            echo "type=flutter" >> $GITHUB_OUTPUT
+          elif [ -f "package.json" ] && grep -q '"expo"' package.json; then
+            echo "type=expo" >> $GITHUB_OUTPUT
+          elif [ -f "package.json" ] && grep -q '"react-native"' package.json; then
+            echo "type=reactnative" >> $GITHUB_OUTPUT
+          else
+            echo "type=native" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Xcode project (XcodeGen)
+        env:
+          IOS_PATH: ${{ inputs.ios_path }}
+        run: |
+          set -e
+          cd "$IOS_PATH"
+
+          MANIFEST=""
+          for f in project.yml project.yaml; do
+            if [ -f "$f" ] && grep -qE '^targets:' "$f"; then
+              MANIFEST="$f"
+              break
+            fi
+          done
+
+          if [ -z "$MANIFEST" ]; then
+            echo "No XcodeGen manifest — skipping."
+          elif [ -n "$(find . -maxdepth 1 -name '*.xcodeproj' -print -quit)" ]; then
+            echo "Found a committed .xcodeproj — skipping generation."
+          else
+            echo "Found $MANIFEST and no .xcodeproj — generating with XcodeGen."
+            brew install xcodegen
+            xcodegen generate
+          fi
+
+      - name: Setup Flutter
+        if: steps.detect.outputs.type == 'flutter'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ inputs.flutter_version || '' }}
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        if: steps.detect.outputs.type == 'flutter'
+        run: flutter pub get
+
+      - name: Setup Node.js
+        if: steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install npm dependencies
+        if: steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo'
+        run: npm install
+
+      - name: Build for the simulator
+        id: build
+        env:
+          IOS_PATH: ${{ inputs.ios_path }}
+          SCHEME: ${{ inputs.scheme }}
+          PROJECT_TYPE: ${{ steps.detect.outputs.type }}
+        run: |
+          set -e
+
+          if [ "$PROJECT_TYPE" = "flutter" ]; then
+            # Flutter drives xcodebuild itself and puts the bundle in a known
+            # place, so there is nothing to detect here.
+            flutter build ios --simulator --debug
+            APP_PATH=$(find build/ios/iphonesimulator -maxdepth 1 -name '*.app' -print -quit)
+          else
+            cd "$IOS_PATH"
+
+            WORKSPACE=$(find . -maxdepth 1 -name '*.xcworkspace' -print -quit)
+            PROJECT=$(find . -maxdepth 1 -name '*.xcodeproj' -print -quit)
+
+            if [ -n "$WORKSPACE" ]; then
+              [ -f Podfile ] && (gem install cocoapods --no-document >/dev/null 2>&1 || true) && pod install
+              TARGET_ARGS="-workspace $WORKSPACE"
+              LIST_ARGS="-workspace $WORKSPACE"
+            elif [ -n "$PROJECT" ]; then
+              TARGET_ARGS="-project $PROJECT"
+              LIST_ARGS="-project $PROJECT"
+            else
+              echo "::error::No .xcworkspace or .xcodeproj found in $IOS_PATH"
+              exit 1
+            fi
+
+            if [ -z "$SCHEME" ]; then
+              SCHEME=$(xcodebuild $LIST_ARGS -list 2>/dev/null | grep -A 100 "Schemes:" | tail -n +2 | grep -v -E "^[[:space:]]*Pods-" | head -1 | xargs)
+            fi
+            echo "Scheme: $SCHEME"
+
+            xcodebuild $TARGET_ARGS \
+              -scheme "$SCHEME" \
+              -configuration Debug \
+              -sdk iphonesimulator \
+              -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
+              CODE_SIGNING_ALLOWED=NO \
+              build
+
+            APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData/Build/Products" -maxdepth 2 -name '*.app' -print -quit)
+            cd "$GITHUB_WORKSPACE"
+          fi
+
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::Build produced no .app"
+            exit 1
+          fi
+          echo "Built $APP_PATH"
+          echo "app_path=$APP_PATH" >> $GITHUB_OUTPUT
+
+      # Installs the build on the simulator and publishes it to the MobAI app.
+      # The step (and the job) stay running until the simulator is released
+      # there or goes unused.
+      - name: Share the simulator
+        env:
+          MOBAI_API_KEY: ${{ secrets.MOBAI_API_KEY }}
+        run: |
+          mobai-ci share \
+            --device "$MOBAI_SIM_UDID" \
+            --app "${{ steps.build.outputs.app_path }}" \
+            --duration "${{ inputs.duration }}" \
+            --label "${{ github.repository }} · ${{ inputs.build_id }}" \
+            --wait-device 4m --startup-timeout 5m

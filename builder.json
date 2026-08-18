@@ -1,0 +1,14 @@
+{
+  "project": "remedy",
+  "platform": "ios",
+  "github": {
+    "owner": "betadust",
+    "repo": "remedy"
+  },
+  "ios": {},
+  "flutter": {
+    "watch": {}
+  },
+  "reactNative": {},
+  "mobai": {}
+}
