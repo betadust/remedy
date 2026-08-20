@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'; //导入material.dart：提供 Material Design 风格的 UI 组件。
 
 void main() {
   runApp(const MyApp());
