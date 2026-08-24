@@ -115,6 +115,13 @@ class _TodoListPageState extends State<TodoListPage> {
       ),
       body: Column(
         children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Image.asset("lib/repositories/images/74330797_p0.png",
+                height: 400,
+                fit: BoxFit.fitHeight
+            )
+          ),
           // 输入区域
           Container(
             padding: const EdgeInsets.all(16),
