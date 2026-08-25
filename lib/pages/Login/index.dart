@@ -1,6 +1,7 @@
 // pages/Login/index.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../stores/user_store.dart';
 
 class LoginPage extends StatefulWidget {
@@ -11,128 +12,126 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  bool _isLoading = false;
-  String _errorMessage = '';
+  String? _qrUrl;
+  bool _isGenerating = false;
+  late UserStore _userStore;  // ✅ 保存引用
 
-  Future<void> _login() async {
-    final username = _usernameController.text.trim();
-    final password = _passwordController.text.trim();
+  @override
+  void initState() {
+    super.initState();
+    _userStore = context.read<UserStore>();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _generateQrCode();
+    });
+  }
 
-    if (username.isEmpty || password.isEmpty) {
-      setState(() {
-        _errorMessage = '请输入账号和密码';
-      });
-      return;
-    }
+  @override
+  void dispose() {
+    // 页面销毁时停止轮询，释放资源
+    _userStore.stopPolling();
+    super.dispose();
+  }
 
+  /// 生成二维码（UI 层只调用 Store 的方法）
+  Future<void> _generateQrCode() async {
+    // 重置 UI 状态
     setState(() {
-      _isLoading = true;
-      _errorMessage = '';
+      _isGenerating = true;
+      _qrUrl = null;
     });
 
     try {
-      final userStore = context.read<UserStore>();
-      await userStore.login(username, password);
-      // 登录成功，跳转到主页
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/');
-      }
-    } catch (e) {
+
+      // 如果有旧轮询先停止
+      _userStore.stopPolling();
+
+      // 生成二维码（返回 URL）
+      print("MAN！ UI生成二维码");
+      final url = await _userStore.generateQrCode();
+      print("MAN! URL: $url");
       setState(() {
-        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        _qrUrl = url;
+        _isGenerating = false;
       });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+
+      // 二维码显示后启动轮询
+      print("MAN！ UI开始轮询");
+      Future.microtask(() {
+        _userStore.startPolling();
+      });
+    } catch (e) {
+      setState(() => _isGenerating = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('生成二维码失败: $e')),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final userStore = context.watch<UserStore>();
+    final status = userStore.qrLoginStatus;
+
+    // 登录成功 -> 自动跳转主页
+    if (userStore.isLoggedIn) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacementNamed(context, '/profile');
+      });
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('登录'),
+        title: const Text('扫码登录'),
         backgroundColor: Colors.pink.shade50,
         elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // B站风格 Logo 或标题
-            const Text(
-              '登录你的B站账号',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 40),
-            TextField(
-              controller: _usernameController,
-              decoration: const InputDecoration(
-                labelText: '账号',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.person_outline),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                '使用哔哩哔哩App扫码登录',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: '密码',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.lock_outline),
-              ),
-              onSubmitted: (_) => _login(),
-            ),
-            if (_errorMessage.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(
-                  _errorMessage,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _login,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFB7299),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
+              const SizedBox(height: 30),
+
+              // 二维码区域
+              if (_isGenerating)
+                const CircularProgressIndicator()
+              else if (_qrUrl != null)
+                QrImageView(
+                  data: _qrUrl!,
+                  version: QrVersions.auto,
+                  size: 200,
+                  gapless: false,
                 )
-                    : const Text('登录'),
+              else
+                const Text('无法生成二维码，请重试'),
+
+              const SizedBox(height: 20),
+
+              // 状态文字
+              Text(
+                status.isNotEmpty ? status : '请打开哔哩哔哩App扫码',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: status.contains('成功') ? Colors.green : Colors.grey.shade600,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () {
-                // 演示提示：测试账号 bili / 123456
-                _usernameController.text = 'bili';
-                _passwordController.text = '123456';
-              },
-              child: const Text('使用测试账号快速填充'),
-            ),
-          ],
+
+              const SizedBox(height: 20),
+
+              // 重新获取按钮（当过期或失败时显示）
+              if (status.contains('过期') || status.contains('失败') || status.contains('异常'))
+                ElevatedButton(
+                  onPressed: _generateQrCode,
+                  child: const Text('重新获取二维码'),
+                ),
+            ],
+          ),
         ),
       ),
     );

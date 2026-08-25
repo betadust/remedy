@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:remedy/pages/Login/index.dart';
 import 'package:remedy/pages/Main/index.dart';
+import 'package:remedy/pages/Profile/index.dart';
 import '../stores/user_store.dart';
 
 
@@ -20,7 +21,8 @@ Widget getRootWidget() {
 
 Map<String, Widget Function(BuildContext)> getRootRoutes() {
   return {
-    "/": (context) => MainPage(), //主页路由
-    "/login": (context) => LoginPage() //登录路由
+    "/": (context) => MainPage(), //首页路由
+    "/login": (context) => LoginPage(), //登录路由
+    "/profile" : (context) => ProfilePage(), //“我的”路由
   };
 }
