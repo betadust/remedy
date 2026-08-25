@@ -24,11 +24,7 @@ class _MainPageState extends State<MainPage> {
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-      // appBar: AppBar(
-      //   title: Text("主页"),
-      // ),
       body:
         SafeArea(
             child: IndexedStack(
@@ -51,6 +47,7 @@ class _MainPageState extends State<MainPage> {
 }
 
 
+// 获取底部导航栏Item列表
 List<BottomNavigationBarItem> _getTabBarWidget(){
   return [
     BottomNavigationBarItem(

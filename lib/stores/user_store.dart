@@ -36,7 +36,7 @@ class UserStore extends ChangeNotifier {
       // 模拟从接口返回的用户信息
       _user = UserInfo(
         name: 'B站用户_' + DateTime.now().millisecond.toString(),
-        avatar: 'https://i0.hdslb.com/bfs/wbi/7cd084941338484aae1ad9425b84077c.png',
+        avatar: 'assets/images/74330797_p0.png', // ✅ 改用本地图片路径
         uid: '10086',
       );
     } else {
