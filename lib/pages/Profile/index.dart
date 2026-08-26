@@ -1,19 +1,14 @@
 // pages/Profile/index.dart
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:remedy/components/Profile/UserAvatarCard.dart';
 import 'package:remedy/components/Profile/UtilCard.dart';
-import '../../stores/user_store.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final userStore = context.watch<UserStore>();
-    final user = userStore.user;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('我的'),

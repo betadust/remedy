@@ -1,28 +1,12 @@
 // components/Profile/UserAvatarCard.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import '../../models/user_info.dart';
 import '../../stores/user_store.dart';
 
 class UserAvatarCard extends StatelessWidget {
   const UserAvatarCard({super.key});
-
-  /// 根据头像路径返回对应的 ImageProvider
-  ImageProvider _getAvatarImage(UserInfo? user) {
-    // 未登录或头像为空 → 使用默认头像
-    if (user == null || user.avatar.isEmpty) {
-      return const AssetImage('assets/images/default_avatar.png');
-    }
-
-    final avatarPath = user.avatar;
-
-    // 如果是本地资源路径（以 assets/ 开头）→ 使用 AssetImage
-    if (avatarPath.startsWith('assets/')) {
-      return AssetImage(avatarPath);
-    }
-
-    // 否则当作网络 URL → 使用 NetworkImage
-    return NetworkImage(avatarPath);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,10 +24,7 @@ class UserAvatarCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 30,
-                backgroundImage: _getAvatarImage(user), // ✅ 调用工具函数
-              ),
+              _AvatarImage(user: user),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -82,6 +63,37 @@ class UserAvatarCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 头像组件：网络图片加载失败时降级显示默认头像
+class _AvatarImage extends StatelessWidget {
+  final UserInfo? user;
+  const _AvatarImage({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final avatar = user?.avatar ?? '';
+
+    return ClipOval(
+      child: SizedBox(
+        width: 60,
+        height: 60,
+        child: avatar.isEmpty
+            ? Image.asset(
+                'assets/images/default_avatar.png',
+                fit: BoxFit.cover,
+              )
+            : Image.network(
+                avatar,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Image.asset(
+                  'assets/images/default_avatar.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
       ),
     );
   }

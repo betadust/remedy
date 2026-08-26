@@ -1,17 +1,14 @@
 // pages/Favorite/index.dart
 import 'package:flutter/material.dart';
 
-class FavoritePage extends StatefulWidget {
+import '../../components/Favorite/FavoriteItemCard.dart';
+
+class FavoritePage extends StatelessWidget {
   const FavoritePage({super.key});
 
-  @override
-  State<FavoritePage> createState() => _FavoritePageState();
-}
-
-class _FavoritePageState extends State<FavoritePage> {
-  // 未来：从 stores/ 或 viewmodels/ 读取数据
-  final List<String> _watchLaterList = ['视频1', '视频2', '视频3'];
-  final List<String> _favoriteList = ['收藏视频A', '收藏视频B'];
+  // 占位数据，未来从 stores/ 读取
+  static const List<String> _watchLaterList = ['视频1', '视频2', '视频3'];
+  static const List<String> _favoriteList = ['收藏视频A', '收藏视频B'];
 
   @override
   Widget build(BuildContext context) {
@@ -25,8 +22,8 @@ class _FavoritePageState extends State<FavoritePage> {
         length: 2,
         child: Column(
           children: [
-            TabBar(
-              tabs: const [
+            const TabBar(
+              tabs: [
                 Tab(text: '稍后再看'),
                 Tab(text: '收藏'),
               ],
@@ -53,13 +50,7 @@ class _FavoritePageState extends State<FavoritePage> {
       padding: const EdgeInsets.all(12),
       itemCount: items.length,
       itemBuilder: (context, index) {
-        return Card(
-          child: ListTile(
-            leading: const Icon(Icons.video_library_outlined),
-            title: Text(items[index]),
-            trailing: const Icon(Icons.more_vert),
-          ),
-        );
+        return FavoriteItemCard(title: items[index]);
       },
     );
   }

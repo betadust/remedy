@@ -1,151 +1,132 @@
 // stores/user_store.dart
-import 'package:flutter/material.dart';
-import 'package:bilibili_api/bilibili_api.dart';
-
-
-//new
-
-// stores/user_store.dart
 import 'dart:async';
 
-class UserInfo {
-  final String name;
-  final String avatar;
-  final String uid;
-  UserInfo({required this.name, required this.avatar, required this.uid});
-}
+import 'package:flutter/material.dart';
+
+import '../api/auth_api.dart';
+import '../models/user_info.dart';
 
 class UserStore extends ChangeNotifier {
-  // ✅ 显式创建 CookieManager 和 BiliHttpClient
-  final CookieManager _cookieManager = CookieManager();
-  late final BiliHttpClient _client;
-  late final LoginApi _loginApi;
+  final AuthApi _authApi = AuthApi();
 
-  UserInfo? _user;                //用户信息
-  String _qrLoginStatus = '';     //二维码登录状态
-  bool _isLoadingQr = false;      //正在登录吗
-  Timer? _pollTimer;              //轮询次数
-  String? _currentQrcodeKey;      //当前二维码key
+  UserInfo? _user;              // 用户信息
+  String? _qrUrl;               // 二维码 URL
+  bool _isGenerating = false;   // 是否正在生成二维码
+  String _qrLoginStatus = '';   // 登录状态文字
+  Timer? _pollTimer;            // 轮询定时器
+  String? _currentQrcodeKey;    // 当前二维码 key
 
   bool get isLoggedIn => _user != null;
-  String get qrLoginStatus => _qrLoginStatus;
-  bool get isLoadingQr => _isLoadingQr;
   UserInfo? get user => _user;
+  String? get qrUrl => _qrUrl;
+  bool get isGenerating => _isGenerating;
+  String get qrLoginStatus => _qrLoginStatus;
 
-  UserStore() {
-    // 初始化客户端
-    _client = BiliHttpClient(cookieManager: _cookieManager);
-    _loginApi = LoginApi(_client);
-  }
+  /// 生成二维码并启动轮询（登录流程的入口，UI 层只调用这一个方法）
+  ///
+  /// 注意：本方法在第一个 await 之前就同步调用了 [notifyListeners]，
+  /// 因此不能在 initState/build 阶段同步调用（会触发
+  /// "setState() or markNeedsBuild() called during build"）。
+  /// 需要延迟执行时用 Future.microtask 或 addPostFrameCallback 包裹。
+  Future<void> generateQrCode() async {
+    _stopPolling();
+    _isGenerating = true;
+    _qrUrl = null;
+    _qrLoginStatus = '正在生成二维码...';
+    notifyListeners();
 
-  // 生成二维码
-  Future<String> generateQrCode() async {
     try {
-      final qrcode = await _loginApi.generateQRCode();
+      final qrcode = await _authApi.generateQRCode();
       _currentQrcodeKey = qrcode.qrcodeKey;
-      return qrcode.url;
+      _qrUrl = qrcode.url;
+      _isGenerating = false;
+      _qrLoginStatus = '请打开哔哩哔哩App扫码';
+      notifyListeners();
+
+      _startPolling();
     } catch (e) {
-      throw Exception('生成二维码失败: $e');
+      _isGenerating = false;
+      _qrLoginStatus = '生成二维码失败，请重试';
+      notifyListeners();
     }
   }
 
-  // 手动轮询（基于官方文档的 pollQRCode）
-  void startPolling() {
-    _qrLoginStatus = '等待扫码...';
-    _isLoadingQr = true;
-    notifyListeners();
-
-    _pollTimer?.cancel();
+  void _startPolling() {
     _pollTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
-      if (_currentQrcodeKey == null) {
+      final key = _currentQrcodeKey;
+      if (key == null) {
         timer.cancel();
         return;
       }
 
       try {
-        // final loginApi = LoginApi(_client);
-        // ✅ 使用官方提供的 pollQRCode 方法
-        print("LX! 调用pollQRCode");
-        final status = await _loginApi.pollQRCode(_currentQrcodeKey!);
+        final status = await _authApi.pollQRCode(key);
 
         switch (status.status) {
           case QRPollStatus.success:
-          // 登录成功！
             timer.cancel();
-            _isLoadingQr = false;
-            await _fetchUserInfo();
-            _qrLoginStatus = '登录成功！';
+            try {
+              await _fetchUserInfo();
+              _qrLoginStatus = '登录成功！';
+            } catch (e) {
+              // 扫码已成功（cookie 已保存），仅拉取用户信息失败
+              debugPrint('获取用户信息失败: $e');
+              _qrLoginStatus = '获取用户信息失败，请重新获取二维码';
+            }
             notifyListeners();
             return;
 
           case QRPollStatus.expired:
             timer.cancel();
-            _isLoadingQr = false;
             _qrLoginStatus = '二维码已过期，请重新获取';
             notifyListeners();
             return;
 
           case QRPollStatus.scanned:
-          // 已扫码，等待用户确认
             _qrLoginStatus = '已扫码，请在手机上确认';
             notifyListeners();
             break;
 
           case QRPollStatus.notScanned:
-          // 未扫码，继续等待
             break;
         }
       } catch (e) {
-        print('轮询异常: $e');
-        // 如果异常是过期，停止轮询
-        // if (e.toString().contains('86038') || e.toString().contains('expired')) {
-        //   print('国企！');
-        //   timer.cancel();
-        //   _isLoadingQr = false;
-        //   _qrLoginStatus = '二维码已过期，请重新获取';
-        //   notifyListeners();
-        // }
+        debugPrint('轮询异常: $e');
       }
     });
   }
 
-  // 获取用户信息
   Future<void> _fetchUserInfo() async {
-    final loginInfoApi = LoginInfoApi(_client);
-    final navInfo = await loginInfoApi.getNavInfo();
-    final mid = navInfo.mid!;
-    final userApi = UserApi(_client);
-    final userDetail = await userApi.getUserInfo(mid);
-
-    _user = UserInfo(
-      name: userDetail.name,
-      avatar: userDetail.face,
-      uid: mid.toString(),
-    );
+    _user = await _authApi.fetchCurrentUser();
   }
 
-  // 停止轮询
-  void stopPolling() {
+  void _stopPolling() {
     _pollTimer?.cancel();
     _pollTimer = null;
-    _isLoadingQr = false;
-    notifyListeners();
   }
 
-  // 登出
+  // 停止轮询（页面销毁时调用）
+  // 不调用 notifyListeners：dispose 发生在 widget 树锁定阶段，
+  // 此时通知会触发 "setState() called when widget tree was locked"。
+  void stopPolling() {
+    _stopPolling();
+    _isGenerating = false;
+  }
+
   void logout() {
-    stopPolling();
+    _stopPolling();
     _user = null;
+    _qrUrl = null;
     _qrLoginStatus = '';
-    _isLoadingQr = false;
+    _isGenerating = false;
     _currentQrcodeKey = null;
     notifyListeners();
   }
 
   @override
   void dispose() {
-    stopPolling();
-    _client.close(); // 释放资源
+    _stopPolling();
+    _authApi.close();
     super.dispose();
   }
 }
