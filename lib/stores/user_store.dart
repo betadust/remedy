@@ -6,8 +6,11 @@ import 'package:flutter/material.dart';
 
 import '../api/auth_api.dart';
 import '../api/favorite_api.dart';
+import '../api/special_follow_api.dart';
 import '../api/watch_later_api.dart';
 import '../models/favorite.dart';
+import '../models/home_feed.dart';
+import '../models/special_follow.dart';
 import '../models/user_info.dart';
 import '../models/watch_later.dart';
 import 'settings_store.dart';
@@ -16,6 +19,7 @@ class UserStore extends ChangeNotifier {
   final AuthApi _authApi = AuthApi();
   late final FavoriteApi _favoriteApi = FavoriteApi(_authApi.client);
   late final WatchLaterApi _watchLaterApi = WatchLaterApi(_authApi.client);
+  late final SpecialFollowApi _specialFollowApi = SpecialFollowApi(_authApi.client);
   final SettingsStore _settingsStore;
 
   UserStore({required SettingsStore settingsStore})
@@ -39,6 +43,11 @@ class UserStore extends ChangeNotifier {
   List<WatchLaterVideo> _watchLaterVideos = [];          // 今日随机推荐的稍后再看视频
   bool _isLoadingWatchLater = false;                     // 是否正在加载稍后再看
 
+  // 首页信息流相关状态
+  List<SpecialFollow> _specialFollows = [];              // 特别关注 UP 主列表
+  List<HomeFeedItem> _homeFeed = [];                     // 首页信息流
+  bool _isLoadingHomeFeed = false;                       // 是否正在加载首页信息流
+
   bool get isLoggedIn => _user != null;
   UserInfo? get user => _user;
   String? get qrUrl => _qrUrl;
@@ -51,6 +60,9 @@ class UserStore extends ChangeNotifier {
   bool get isLoadingToday => _isLoadingToday;
   List<WatchLaterVideo> get watchLaterVideos => _watchLaterVideos;
   bool get isLoadingWatchLater => _isLoadingWatchLater;
+  List<SpecialFollow> get specialFollows => _specialFollows;
+  List<HomeFeedItem> get homeFeed => _homeFeed;
+  bool get isLoadingHomeFeed => _isLoadingHomeFeed;
 
   /// 生成二维码并启动轮询（登录流程的入口，UI 层只调用这一个方法）
   ///
@@ -104,9 +116,10 @@ class UserStore extends ChangeNotifier {
               _qrLoginStatus = '获取用户信息失败，请重新获取二维码';
             }
             notifyListeners();
-            // 登录后异步加载收藏夹和稍后再看（不阻塞跳转）
+            // 登录后异步加载收藏夹、稍后再看和首页信息流（不阻塞跳转）
             loadFavorites();
             loadWatchLater();
+            loadHomeFeed();
             return;
 
           case QRPollStatus.expired:
@@ -232,6 +245,69 @@ class UserStore extends ChangeNotifier {
     }
   }
 
+  /// 加载首页信息流：特别关注列表 + 过滤后的动态
+  Future<void> loadHomeFeed() async {
+    if (_user == null) return;
+
+    _isLoadingHomeFeed = true;
+    notifyListeners();
+
+    try {
+      // 1. 拿特别关注列表
+      _specialFollows = await _specialFollowApi.getSpecialFollows();
+      final followMids = _specialFollows.map((f) => f.mid).toSet();
+      debugPrint('特别关注数量: ${followMids.length}, mids: $followMids');
+
+      // 2. 翻页拉取动态，直到覆盖 homeFeedDays 天窗口或没有更多
+      final cutoffTs = DateTime.now()
+              .subtract(Duration(days: _settingsStore.homeFeedDays))
+              .millisecondsSinceEpoch ~/
+          1000;
+
+      final feed = <HomeFeedItem>[];
+      String? offset;
+      var pageCount = 0;
+      var reachedCutoff = false;
+
+      while (!reachedCutoff && pageCount < 20) {
+        pageCount++;
+        final (items, hasMore, nextOffset) =
+            await _specialFollowApi.getFollowFeedPage(offset: offset);
+
+        for (final item in items) {
+          final parsed = HomeFeedItem.fromDynamicJson(item);
+          if (parsed == null) {
+            continue;
+          }
+          if (parsed.pubTs < cutoffTs) {
+            // 已超出时间窗口，停止翻页
+            reachedCutoff = true;
+            break;
+          }
+          if (followMids.contains(parsed.authorMid)) {
+            feed.add(parsed);
+          }
+        }
+
+        debugPrint('第 $pageCount 页: ${items.length} 条, hasMore=$hasMore');
+        if (!hasMore || nextOffset == null) break;
+        offset = nextOffset;
+      }
+
+      // 3. 按发布时间倒序
+      feed.sort((a, b) => b.pubTs.compareTo(a.pubTs));
+      _homeFeed = feed;
+      debugPrint('首页信息流最终 ${feed.length} 条');
+    } catch (e) {
+      debugPrint('加载首页信息流失败: $e');
+      _specialFollows = [];
+      _homeFeed = [];
+    } finally {
+      _isLoadingHomeFeed = false;
+      notifyListeners();
+    }
+  }
+
   void _stopPolling() {
     _pollTimer?.cancel();
     _pollTimer = null;
@@ -259,6 +335,9 @@ class UserStore extends ChangeNotifier {
     _isLoadingToday = false;
     _watchLaterVideos = [];
     _isLoadingWatchLater = false;
+    _specialFollows = [];
+    _homeFeed = [];
+    _isLoadingHomeFeed = false;
     notifyListeners();
   }
 

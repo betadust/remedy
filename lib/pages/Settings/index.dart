@@ -70,6 +70,56 @@ class SettingsPage extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '首页动态显示天数',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '首页显示最近 ${settingsStore.homeFeedDays} 天内的特别关注动态',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Slider(
+                    value: settingsStore.homeFeedDays.toDouble(),
+                    min: 1,
+                    max: 30,
+                    divisions: 29,
+                    label: '${settingsStore.homeFeedDays}',
+                    onChanged: (value) {
+                      settingsStore.setHomeFeedDays(value.round());
+                    },
+                    onChangeEnd: (value) {
+                      final userStore = context.read<UserStore>();
+                      if (userStore.isLoggedIn) {
+                        userStore.loadHomeFeed();
+                      }
+                    },
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('1天', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      Text('30天', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
