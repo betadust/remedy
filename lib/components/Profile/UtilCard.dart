@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../constants/app_colors.dart';
 import '../../stores/user_store.dart';
 
 class UtilCard extends StatelessWidget {
@@ -27,7 +28,7 @@ class UtilCard extends StatelessWidget {
           _buildMenuItem(
             Icons.logout,
             '切换账号',
-            color: Colors.blue,
+            color: AppColors.biliPink,
             onTap: () {
               userStore.logout();
               Navigator.pushNamed(context, '/login');

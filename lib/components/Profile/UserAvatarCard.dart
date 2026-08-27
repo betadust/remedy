@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../constants/app_colors.dart';
 import '../../models/user_info.dart';
 import '../../stores/user_store.dart';
 
@@ -39,9 +40,9 @@ class UserAvatarCard extends StatelessWidget {
                     ),
                     Text(
                       user != null ? '已登录' : '点击登录',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
-                        color: Colors.grey.shade600,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],

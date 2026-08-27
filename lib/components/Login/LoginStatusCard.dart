@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../constants/app_colors.dart';
 import '../../stores/user_store.dart';
 
 class LoginStatusCard extends StatelessWidget {
@@ -21,7 +22,9 @@ class LoginStatusCard extends StatelessWidget {
           status.isNotEmpty ? status : '请打开哔哩哔哩App扫码',
           style: TextStyle(
             fontSize: 16,
-            color: status.contains('成功') ? Colors.green : Colors.grey.shade600,
+            color: status.contains('成功')
+                ? Colors.green
+                : AppColors.textSecondary,
           ),
           textAlign: TextAlign.center,
         ),

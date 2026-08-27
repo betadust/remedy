@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../constants/app_colors.dart';
 import '../../stores/settings_store.dart';
 import '../../stores/user_store.dart';
 
@@ -15,8 +16,6 @@ class SettingsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('设置'),
-        backgroundColor: Colors.pink.shade50,
-        elevation: 0,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -37,9 +36,9 @@ class SettingsPage extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '每天随机推荐 ${settingsStore.watchLaterCount} 个稍后再看视频',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 13,
-                      color: Colors.grey.shade600,
+                      color: AppColors.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -62,8 +61,8 @@ class SettingsPage extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('1', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                      Text('20', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      Text('1', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      Text('20', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                     ],
                   ),
                 ],
@@ -87,9 +86,9 @@ class SettingsPage extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '首页显示最近 ${settingsStore.homeFeedDays} 天内的特别关注动态',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 13,
-                      color: Colors.grey.shade600,
+                      color: AppColors.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -112,8 +111,8 @@ class SettingsPage extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('1天', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                      Text('30天', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      Text('1天', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      Text('30天', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                     ],
                   ),
                 ],

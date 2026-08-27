@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../constants/app_colors.dart';
 import '../../models/favorite.dart';
 
 class FavoriteVideoCard extends StatelessWidget {
@@ -64,9 +65,9 @@ class FavoriteVideoCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       video.upperName,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade600,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],

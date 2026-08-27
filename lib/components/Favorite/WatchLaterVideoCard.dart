@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../constants/app_colors.dart';
 import '../../models/watch_later.dart';
 
 /// 竖版视频卡片（两列网格用）：封面在上、标题在下
@@ -73,7 +74,7 @@ class WatchLaterVideoCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         height: 1.3,
-                        color: Colors.grey.shade600,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ),

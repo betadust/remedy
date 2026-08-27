@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../constants/app_colors.dart';
 import '../../models/home_feed.dart';
 
 /// 首页视频动态卡片：封面 + 标题 + UP主 + 时长
@@ -102,9 +103,9 @@ class FeedVideoCard extends StatelessWidget {
                           item.authorName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 13,
-                            color: Colors.grey.shade600,
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ),

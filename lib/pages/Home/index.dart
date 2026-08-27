@@ -18,8 +18,6 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('首页'),
-        backgroundColor: Color(0xFFFB8FAF),
-        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_outlined),

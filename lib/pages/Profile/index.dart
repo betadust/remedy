@@ -12,8 +12,6 @@ class ProfilePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('我的'),
-        backgroundColor: Colors.pink.shade50,
-        elevation: 0,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),

@@ -16,8 +16,6 @@ class FavoritePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('收藏'),
-        backgroundColor: Color(0xFFFB8FAF),
-        elevation: 0,
       ),
       body: DefaultTabController(
         length: 2,

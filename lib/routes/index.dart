@@ -6,6 +6,7 @@ import 'package:remedy/pages/Main/index.dart';
 import 'package:remedy/pages/Settings/index.dart';
 import '../stores/settings_store.dart';
 import '../stores/user_store.dart';
+import '../theme/app_theme.dart';
 
 
 // 返回App根级组件（已注册 Provider）
@@ -18,6 +19,7 @@ Widget getRootWidget() {
       ),
     ],
     child: MaterialApp(
+      theme: buildAppTheme(),
       //命名路由
       initialRoute: "/",
       routes: getRootRoutes(),

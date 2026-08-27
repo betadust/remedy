@@ -3,6 +3,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../../constants/app_colors.dart';
+
 /// 稍后再看顶部的随机提醒文案
 class WatchLaterBanner extends StatefulWidget {
   const WatchLaterBanner({super.key});
@@ -35,17 +37,20 @@ class _WatchLaterBannerState extends State<WatchLaterBanner> {
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.pink.shade50,
+        color: AppColors.biliPinkLight,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
-          Icon(Icons.schedule, size: 18, color: Colors.pink.shade400),
+          const Icon(Icons.schedule, size: 18, color: AppColors.biliPink),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               _message,
-              style: TextStyle(fontSize: 13, color: Colors.pink.shade700),
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.biliPink,
+              ),
             ),
           ),
         ],
