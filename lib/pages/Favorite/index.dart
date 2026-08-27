@@ -1,14 +1,13 @@
 // pages/Favorite/index.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../../components/Favorite/FavoriteItemCard.dart';
+import '../../components/Favorite/FavoriteFolderTile.dart';
+import '../../components/Favorite/FavoriteVideoCard.dart';
+import '../../stores/user_store.dart';
 
 class FavoritePage extends StatelessWidget {
   const FavoritePage({super.key});
-
-  // 占位数据，未来从 stores/ 读取
-  static const List<String> _watchLaterList = ['视频1', '视频2', '视频3'];
-  static const List<String> _favoriteList = ['收藏视频A', '收藏视频B'];
 
   @override
   Widget build(BuildContext context) {
@@ -31,8 +30,8 @@ class FavoritePage extends StatelessWidget {
             Expanded(
               child: TabBarView(
                 children: [
-                  _buildList(_watchLaterList, '暂无稍后再看'),
-                  _buildList(_favoriteList, '暂无收藏'),
+                  const Center(child: Text('稍后再看（待实现）')),
+                  _buildFavoriteTab(context),
                 ],
               ),
             ),
@@ -42,16 +41,61 @@ class FavoritePage extends StatelessWidget {
     );
   }
 
-  Widget _buildList(List<String> items, String emptyText) {
-    if (items.isEmpty) {
-      return Center(child: Text(emptyText));
+  Widget _buildFavoriteTab(BuildContext context) {
+    final userStore = context.watch<UserStore>();
+
+    if (!userStore.isLoggedIn) {
+      return const Center(child: Text('请先登录'));
     }
-    return ListView.builder(
+
+    return ListView(
       padding: const EdgeInsets.all(12),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        return FavoriteItemCard(title: items[index]);
-      },
+      children: [
+        // 上半部分：公开收藏夹
+        if (userStore.isLoadingFolders)
+          const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (userStore.folders.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: Text('暂无公开收藏夹')),
+          )
+        else
+          ...userStore.folders.map((folder) {
+            final videos = userStore.folderVideos[folder.id] ?? [];
+            return FavoriteFolderTile(
+              folder: folder,
+              videos: videos,
+              loaded: userStore.folderVideos.containsKey(folder.id),
+              onExpand: () => userStore.loadFolderVideos(folder.id),
+            );
+          }),
+
+        const SizedBox(height: 16),
+
+        // 下半部分：今日推荐
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Text(
+            '今日推荐',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        ),
+        if (userStore.isLoadingToday)
+          const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (userStore.todayVideo == null)
+          const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: Text('暂无收藏视频')),
+          )
+        else
+          FavoriteVideoCard(video: userStore.todayVideo!),
+      ],
     );
   }
 }

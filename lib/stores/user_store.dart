@@ -1,13 +1,17 @@
 // stores/user_store.dart
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 
 import '../api/auth_api.dart';
+import '../api/favorite_api.dart';
+import '../models/favorite.dart';
 import '../models/user_info.dart';
 
 class UserStore extends ChangeNotifier {
   final AuthApi _authApi = AuthApi();
+  late final FavoriteApi _favoriteApi = FavoriteApi(_authApi.client);
 
   UserInfo? _user;              // 用户信息
   String? _qrUrl;               // 二维码 URL
@@ -16,11 +20,23 @@ class UserStore extends ChangeNotifier {
   Timer? _pollTimer;            // 轮询定时器
   String? _currentQrcodeKey;    // 当前二维码 key
 
+  // 收藏夹相关状态
+  List<FavoriteFolder> _folders = [];                    // 公开收藏夹
+  Map<int, List<FavoriteVideo>> _folderVideos = {};      // 收藏夹 id -> 视频列表
+  FavoriteVideo? _todayVideo;                            // 今日推荐视频
+  bool _isLoadingFolders = false;                        // 是否正在加载收藏夹
+  bool _isLoadingToday = false;                          // 是否正在加载今日推荐
+
   bool get isLoggedIn => _user != null;
   UserInfo? get user => _user;
   String? get qrUrl => _qrUrl;
   bool get isGenerating => _isGenerating;
   String get qrLoginStatus => _qrLoginStatus;
+  List<FavoriteFolder> get folders => _folders;
+  Map<int, List<FavoriteVideo>> get folderVideos => _folderVideos;
+  FavoriteVideo? get todayVideo => _todayVideo;
+  bool get isLoadingFolders => _isLoadingFolders;
+  bool get isLoadingToday => _isLoadingToday;
 
   /// 生成二维码并启动轮询（登录流程的入口，UI 层只调用这一个方法）
   ///
@@ -74,6 +90,8 @@ class UserStore extends ChangeNotifier {
               _qrLoginStatus = '获取用户信息失败，请重新获取二维码';
             }
             notifyListeners();
+            // 登录后异步加载收藏夹（不阻塞跳转）
+            loadFavorites();
             return;
 
           case QRPollStatus.expired:
@@ -100,6 +118,72 @@ class UserStore extends ChangeNotifier {
     _user = await _authApi.fetchCurrentUser();
   }
 
+  /// 加载公开收藏夹 + 今日随机推荐
+  Future<void> loadFavorites() async {
+    final mid = _user?.uid;
+    if (mid == null) return;
+
+    _isLoadingFolders = true;
+    _isLoadingToday = true;
+    notifyListeners();
+
+    try {
+      final all = await _favoriteApi.getFavoriteFolders(int.parse(mid));
+      _folders = all.where((f) => f.isPublic).toList();
+    } catch (e) {
+      debugPrint('加载收藏夹失败: $e');
+      _folders = [];
+    } finally {
+      _isLoadingFolders = false;
+      notifyListeners();
+    }
+
+    await _loadTodayVideo();
+  }
+
+  /// 展开收藏夹时懒加载其视频列表
+  Future<void> loadFolderVideos(int mediaId) async {
+    if (_folderVideos.containsKey(mediaId)) return;
+
+    try {
+      final videos = await _favoriteApi.getFolderVideos(mediaId);
+      _folderVideos[mediaId] = videos;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('加载收藏夹视频失败: $e');
+    }
+  }
+
+  /// 日期作为随机种子，随机选一个公开收藏夹，再随机选一个视频作为今日推荐
+  Future<void> _loadTodayVideo() async {
+    if (_folders.isEmpty) {
+      _isLoadingToday = false;
+      notifyListeners();
+      return;
+    }
+
+    try {
+      final now = DateTime.now();
+      final seed = now.year * 10000 + now.month * 100 + now.day;
+      final random = Random(seed);
+
+      final folder = _folders[random.nextInt(_folders.length)];
+      final videos = await _favoriteApi.getFolderVideos(folder.id);
+
+      if (videos.isEmpty) {
+        _todayVideo = null;
+      } else {
+        _todayVideo = videos[random.nextInt(videos.length)];
+      }
+    } catch (e) {
+      debugPrint('加载今日推荐失败: $e');
+      _todayVideo = null;
+    } finally {
+      _isLoadingToday = false;
+      notifyListeners();
+    }
+  }
+
   void _stopPolling() {
     _pollTimer?.cancel();
     _pollTimer = null;
@@ -120,6 +204,11 @@ class UserStore extends ChangeNotifier {
     _qrLoginStatus = '';
     _isGenerating = false;
     _currentQrcodeKey = null;
+    _folders = [];
+    _folderVideos = {};
+    _todayVideo = null;
+    _isLoadingFolders = false;
+    _isLoadingToday = false;
     notifyListeners();
   }
 

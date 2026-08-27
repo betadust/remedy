@@ -23,6 +23,9 @@ class AuthApi {
     _userApi = UserApi(_client);
   }
 
+  /// 供其他 API（如收藏夹）复用同一个已登录的 client
+  BiliHttpClient get client => _client;
+
   Future<QRCodeData> generateQRCode() => retry(_loginApi.generateQRCode);
 
   Future<QRPollData> pollQRCode(String qrcodeKey) =>

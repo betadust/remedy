@@ -29,7 +29,10 @@ class _LoginPageState extends State<LoginPage> {
   void _handleStoreChanged() {
     if (!mounted) return;
     if (_userStore.isLoggedIn) {
-      Navigator.of(context).pushReplacementNamed('/profile');
+      // 只跳转一次：立即移除监听，避免 loadFavorites 等后续 notify 再次触发 pop
+      _userStore.removeListener(_handleStoreChanged);
+      // 直接返回来源页（MainPage），避免 pushReplacement 压入新的页面实例导致返回箭头
+      Navigator.of(context).pop();
     }
   }
 
