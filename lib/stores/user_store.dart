@@ -6,12 +6,20 @@ import 'package:flutter/material.dart';
 
 import '../api/auth_api.dart';
 import '../api/favorite_api.dart';
+import '../api/watch_later_api.dart';
 import '../models/favorite.dart';
 import '../models/user_info.dart';
+import '../models/watch_later.dart';
+import 'settings_store.dart';
 
 class UserStore extends ChangeNotifier {
   final AuthApi _authApi = AuthApi();
   late final FavoriteApi _favoriteApi = FavoriteApi(_authApi.client);
+  late final WatchLaterApi _watchLaterApi = WatchLaterApi(_authApi.client);
+  final SettingsStore _settingsStore;
+
+  UserStore({required SettingsStore settingsStore})
+      : _settingsStore = settingsStore;
 
   UserInfo? _user;              // 用户信息
   String? _qrUrl;               // 二维码 URL
@@ -27,6 +35,10 @@ class UserStore extends ChangeNotifier {
   bool _isLoadingFolders = false;                        // 是否正在加载收藏夹
   bool _isLoadingToday = false;                          // 是否正在加载今日推荐
 
+  // 稍后再看相关状态
+  List<WatchLaterVideo> _watchLaterVideos = [];          // 今日随机推荐的稍后再看视频
+  bool _isLoadingWatchLater = false;                     // 是否正在加载稍后再看
+
   bool get isLoggedIn => _user != null;
   UserInfo? get user => _user;
   String? get qrUrl => _qrUrl;
@@ -37,6 +49,8 @@ class UserStore extends ChangeNotifier {
   FavoriteVideo? get todayVideo => _todayVideo;
   bool get isLoadingFolders => _isLoadingFolders;
   bool get isLoadingToday => _isLoadingToday;
+  List<WatchLaterVideo> get watchLaterVideos => _watchLaterVideos;
+  bool get isLoadingWatchLater => _isLoadingWatchLater;
 
   /// 生成二维码并启动轮询（登录流程的入口，UI 层只调用这一个方法）
   ///
@@ -90,8 +104,9 @@ class UserStore extends ChangeNotifier {
               _qrLoginStatus = '获取用户信息失败，请重新获取二维码';
             }
             notifyListeners();
-            // 登录后异步加载收藏夹（不阻塞跳转）
+            // 登录后异步加载收藏夹和稍后再看（不阻塞跳转）
             loadFavorites();
+            loadWatchLater();
             return;
 
           case QRPollStatus.expired:
@@ -184,6 +199,39 @@ class UserStore extends ChangeNotifier {
     }
   }
 
+  /// 加载稍后再看，按日期种子随机取 10 个
+  Future<void> loadWatchLater() async {
+    if (_user == null) return;
+
+    _isLoadingWatchLater = true;
+    notifyListeners();
+
+    try {
+      final all = await _watchLaterApi.getWatchLater();
+
+      final now = DateTime.now();
+      final seed = now.year * 10000 + now.month * 100 + now.day;
+      final random = Random(seed);
+
+      // Fisher-Yates 洗牌
+      final shuffled = List<WatchLaterVideo>.from(all);
+      for (var i = shuffled.length - 1; i > 0; i--) {
+        final j = random.nextInt(i + 1);
+        final tmp = shuffled[i];
+        shuffled[i] = shuffled[j];
+        shuffled[j] = tmp;
+      }
+
+      _watchLaterVideos = shuffled.take(_settingsStore.watchLaterCount).toList();
+    } catch (e) {
+      debugPrint('加载稍后再看失败: $e');
+      _watchLaterVideos = [];
+    } finally {
+      _isLoadingWatchLater = false;
+      notifyListeners();
+    }
+  }
+
   void _stopPolling() {
     _pollTimer?.cancel();
     _pollTimer = null;
@@ -209,6 +257,8 @@ class UserStore extends ChangeNotifier {
     _todayVideo = null;
     _isLoadingFolders = false;
     _isLoadingToday = false;
+    _watchLaterVideos = [];
+    _isLoadingWatchLater = false;
     notifyListeners();
   }
 

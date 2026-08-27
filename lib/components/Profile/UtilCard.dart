@@ -18,7 +18,11 @@ class UtilCard extends StatelessWidget {
         children: [
           _buildMenuItem(Icons.history, '历史记录'),
           _buildMenuItem(Icons.download_outlined, '离线缓存'),
-          _buildMenuItem(Icons.settings_outlined, '设置'),
+          _buildMenuItem(
+            Icons.settings_outlined,
+            '设置',
+            onTap: () => Navigator.pushNamed(context, '/settings'),
+          ),
           const Divider(height: 1),
           _buildMenuItem(
             Icons.logout,

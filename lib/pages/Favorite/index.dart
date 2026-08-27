@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 
 import '../../components/Favorite/FavoriteFolderTile.dart';
 import '../../components/Favorite/FavoriteVideoCard.dart';
+import '../../components/Favorite/WatchLaterBanner.dart';
+import '../../components/Favorite/WatchLaterVideoCard.dart';
 import '../../stores/user_store.dart';
 
 class FavoritePage extends StatelessWidget {
@@ -30,7 +32,7 @@ class FavoritePage extends StatelessWidget {
             Expanded(
               child: TabBarView(
                 children: [
-                  const Center(child: Text('稍后再看（待实现）')),
+                  _buildWatchLaterTab(context),
                   _buildFavoriteTab(context),
                 ],
               ),
@@ -38,6 +40,43 @@ class FavoritePage extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildWatchLaterTab(BuildContext context) {
+    final userStore = context.watch<UserStore>();
+
+    if (!userStore.isLoggedIn) {
+      return const Center(child: Text('请先登录'));
+    }
+
+    if (userStore.isLoadingWatchLater) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (userStore.watchLaterVideos.isEmpty) {
+      return const Center(child: Text('暂无稍后再看视频'));
+    }
+
+    return Column(
+      children: [
+        const WatchLaterBanner(),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(12),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              mainAxisExtent: 170,
+            ),
+            itemCount: userStore.watchLaterVideos.length,
+            itemBuilder: (context, index) {
+              return WatchLaterVideoCard(video: userStore.watchLaterVideos[index]);
+            },
+          ),
+        ),
+      ],
     );
   }
 
